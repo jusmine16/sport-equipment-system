@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Profile {
+  id        String   @id
+  username  String   @unique
+  email     String   @unique
+  password  String
+  role      String   @default("user") // 'admin' or 'user'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  borrowRequests BorrowRequest[]
+  transactions   Transaction[]
+
+  @@map("profiles")
+}
+
+model Equipment {
+  id                Int    @id @default(autoincrement())
+  name              String
+  category          String @default("other") // 'balls', 'rackets', 'protective', 'fitness', 'other'
+  quantity          Int    @default(0)
+  availableQuantity Int    @default(0) @map("available_quantity")
+  condition         String @default("good") // 'new', 'good', 'fair', 'poor'
+  status            String @default("available") // 'available', 'maintenance', 'retired'
+  imageUrl          String? @map("image_url")
+  description       String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  borrowItems  BorrowItem[]
+  transactions Transaction[]
+
+  @@map("equipment")
+}
+
+model BorrowRequest {
+  id                    Int         @id @default(autoincrement())
+  userId                String      @map("user_id")
+  borrowerName          String      @map("borrower_name")
+  idNumber              String      @map("id_number")
+  departmentCourse      String      @map("department_course")
+  contactNumber         String      @map("contact_number")
+  expectedReturnDate    DateTime?   @map("expected_return_date")
+  purpose               String?
+  status                String      @default("pending") // 'pending', 'approved', 'rejected'
+  requestDate           DateTime    @default(now()) @map("request_date")
+  processedDate         DateTime?   @map("processed_date")
+  notes                 String?
+
+  user    Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items   BorrowItem[]
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("borrow_requests")
+}
+
+model BorrowItem {
+  id               Int          @id @default(autoincrement())
+  borrowRequestId  Int          @map("borrow_request_id")
+  equipmentId      Int          @map("equipment_id")
+  quantity         Int          @default(1)
+
+  borrowRequest BorrowRequest @relation(fields: [borrowRequestId], references: [id], onDelete: Cascade)
+  equipment     Equipment     @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+
+  @@index([borrowRequestId])
+  @@map("borrow_items")
+}
+
+model Transaction {
+  id                Int       @id @default(autoincrement())
+  userId            String    @map("user_id")
+  equipmentId       Int       @map("equipment_id")
+  quantity          Int
+  borrowDate        DateTime  @default(now()) @map("borrow_date")
+  returnDate        DateTime? @map("return_date")
+  conditionOnReturn String?   @map("condition_on_return") // 'new', 'good', 'fair', 'poor'
+  borrowRequestId   Int?      @map("borrow_request_id")
+
+  user          Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  equipment     Equipment    @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  borrowRequest BorrowRequest? @relation(fields: [borrowRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([equipmentId])
+  @@map("transactions")
+}
