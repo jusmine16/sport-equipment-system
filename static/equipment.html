@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Equipment - Sport Equipment Borrowing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100" x-data="equipmentApp()" x-init="init()">
+  <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <a href="dashboard.html" class="text-xl font-bold text-amber-400">Sport Equipment</a>
+      <div class="flex gap-4">
+        <a href="equipment.html" class="text-amber-400">Equipment</a>
+        <a href="transactions.html" class="text-slate-300 hover:text-white">My Transactions</a>
+        <template x-if="user?.role === 'admin'">
+          <a href="admin.html" class="text-slate-300 hover:text-white">Admin</a>
+        </template>
+        <button @click="logout" class="text-red-400 hover:text-red-300 text-sm">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto p-6">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <h1 class="text-2xl font-bold">Equipment</h1>
+      <div class="flex gap-2 flex-wrap">
+        <input type="text" x-model="search" @input.debounce.300ms="load()"
+          placeholder="Search..." class="px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white w-48">
+        <select x-model="category" @change="load()" class="px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white">
+          <option value="">All categories</option>
+          <option value="balls">Balls</option>
+          <option value="rackets">Rackets</option>
+          <option value="protective">Protective Gear</option>
+          <option value="fitness">Fitness Equipment</option>
+          <option value="other">Other</option>
+        </select>
+        <button @click="openBorrowModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg">
+          Borrow Equipment
+        </button>
+        <template x-if="user?.role === 'admin'">
+          <button @click="openAddModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg">
+            Add Equipment
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-700">
+      <table class="w-full">
+        <thead class="bg-slate-800 text-left">
+          <tr>
+            <th class="px-6 py-4 font-semibold">Name</th>
+            <th class="px-6 py-4 font-semibold">Category</th>
+            <th class="px-6 py-4 font-semibold">Available</th>
+            <th class="px-6 py-4 font-semibold">Total</th>
+            <th class="px-6 py-4 font-semibold">Condition</th>
+            <th class="px-6 py-4 font-semibold">Status</th>
+            <th class="px-6 py-4 font-semibold" x-show="user?.role === 'admin'">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700">
+          <template x-for="eq in equipment" :key="eq.id">
+            <tr class="hover:bg-slate-800/50">
+              <td class="px-6 py-4" x-text="eq.name"></td>
+              <td class="px-6 py-4" x-text="eq.category_display"></td>
+              <td class="px-6 py-4" x-text="eq.available_quantity"></td>
+              <td class="px-6 py-4" x-text="eq.quantity"></td>
+              <td class="px-6 py-4" x-text="eq.condition_display"></td>
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-xs"
+                  :class="eq.status === 'available' ? 'bg-emerald-500/30 text-emerald-400' : 'bg-slate-500/30 text-slate-400'"
+                  x-text="eq.status_display"></span>
+              </td>
+              <td class="px-6 py-4" x-show="user?.role === 'admin'">
+                <button @click="openEditModal(eq)" class="text-amber-400 hover:underline mr-2">Edit</button>
+                <button @click="deleteEquip(eq)" class="text-red-400 hover:underline">Delete</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <p x-show="equipment.length === 0 && !loading" class="text-slate-500 mt-6">No equipment found.</p>
+  </main>
+
+  <!-- Borrow Modal -->
+  <div x-show="borrowModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="borrowModal = false">
+    <div class="bg-slate-800 rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" @click.stop>
+      <div class="p-6">
+        <h2 class="text-xl font-bold mb-4">Borrow Equipment</h2>
+        <div class="space-y-3 mb-6">
+          <template x-for="item in borrowItems" :key="item.equipment">
+            <div class="flex gap-4 items-center p-3 bg-slate-700/50 rounded-lg">
+              <select x-model="item.equipment" class="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white">
+                <option value="">Select equipment</option>
+                <template x-for="eq in equipment.filter(e => e.available_quantity > 0 && e.status === 'available')" :key="eq.id">
+                  <option :value="eq.id" x-text="`${eq.name} (${eq.available_quantity} available)`"></option>
+                </template>
+              </select>
+              <input type="number" x-model.number="item.quantity" min="1" class="w-20 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white">
+            </div>
+          </template>
+        </div>
+        <div class="flex gap-2">
+          <button @click="borrowItems.push({equipment: '', quantity: 1})" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg">Add item</button>
+          <button @click="submitBorrow()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg">Submit Request</button>
+          <button @click="borrowModal = false" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Equipment Modal (admin) -->
+  <div x-show="editModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="editModal = false">
+    <div class="bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" @click.stop>
+      <h2 class="text-xl font-bold mb-4" x-text="editing ? 'Edit Equipment' : 'Add Equipment'"></h2>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Name</label>
+          <input type="text" x-model="form.name" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Category</label>
+          <select x-model="form.category" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+            <option value="balls">Balls</option>
+            <option value="rackets">Rackets</option>
+            <option value="protective">Protective Gear</option>
+            <option value="fitness">Fitness Equipment</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Quantity</label>
+          <input type="number" x-model.number="form.quantity" min="0" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Condition</label>
+          <select x-model="form.condition" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+            <option value="new">New</option>
+            <option value="good">Good</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Status</label>
+          <select x-model="form.status" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+            <option value="available">Available</option>
+            <option value="maintenance">Under Maintenance</option>
+            <option value="retired">Retired</option>
+          </select>
+        </div>
+        <div class="flex gap-2 pt-4">
+          <button @click="submitEquipment()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg">Save</button>
+          <button @click="editModal = false" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div x-show="notification" x-transition class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg"
+    :class="notifType === 'error' ? 'bg-red-600' : 'bg-emerald-600'" x-text="notification"></div>
+
+  <script src="js/api.js"></script>
+  <script>
+    function equipmentApp() {
+      return {
+        user: null, equipment: [], loading: false, search: '', category: '',
+        borrowModal: false, borrowItems: [{ equipment: '', quantity: 1 }],
+        editModal: false, editing: null,
+        form: { name: '', category: 'other', quantity: 0, condition: 'good', status: 'available' },
+        notification: '', notifType: 'success',
+        async init() {
+          redirectToLogin();
+          this.user = await getUser();
+          this.load();
+        },
+        async load() {
+          this.loading = true;
+          try {
+            this.equipment = await getEquipment(this.search, this.category);
+          } catch (e) {
+            this.notify(e.message || 'Failed to load', 'error');
+          } finally { this.loading = false; }
+        },
+        openBorrowModal() {
+          this.borrowItems = [{ equipment: '', quantity: 1 }];
+          this.borrowModal = true;
+        },
+        async submitBorrow() {
+          const items = this.borrowItems.filter(i => i.equipment && i.quantity > 0)
+            .map(i => ({ equipment: parseInt(i.equipment), quantity: i.quantity }));
+          if (!items.length) {
+            this.notify('Add at least one equipment item', 'error');
+            return;
+          }
+          try {
+            await createBorrow(items);
+            this.notify('Borrow request submitted!');
+            this.borrowModal = false;
+          } catch (e) {
+            this.notify(e.message || e.data?.error || 'Failed', 'error');
+          }
+        },
+        openAddModal() {
+          this.editing = null;
+          this.form = { name: '', category: 'other', quantity: 0, condition: 'good', status: 'available' };
+          this.editModal = true;
+        },
+        openEditModal(eq) {
+          this.editing = eq;
+          this.form = { name: eq.name, category: eq.category, quantity: eq.quantity, condition: eq.condition, status: eq.status };
+          this.editModal = true;
+        },
+        async submitEquipment() {
+          try {
+            if (this.editing) {
+              await updateEquipment(this.editing.id, this.form);
+              this.notify('Equipment updated');
+            } else {
+              await createEquipment(this.form);
+              this.notify('Equipment added');
+            }
+            this.editModal = false;
+            this.load();
+          } catch (e) {
+            this.notify(e.message || (e.data && (e.data.name?.[0] || e.data.quantity?.[0])) || 'Failed', 'error');
+          }
+        },
+        async deleteEquip(eq) {
+          if (!confirm(`Delete ${eq.name}?`)) return;
+          try {
+            await deleteEquipment(eq.id);
+            this.notify('Equipment deleted');
+            this.load();
+          } catch (e) {
+            this.notify(e.message || 'Failed', 'error');
+          }
+        },
+        notify(msg, type = 'success') {
+          this.notification = msg;
+          this.notifType = type;
+          setTimeout(() => this.notification = '', 3000);
+        },
+        logout() { clearAuth(); window.location.href = 'login.html'; }
+      };
+    }
+  </script>
+</body>
+</html>

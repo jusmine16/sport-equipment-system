@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Transactions - Sport Equipment Borrowing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100" x-data="transactionsApp()" x-init="init()">
+  <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <a href="dashboard.html" class="text-xl font-bold text-amber-400">Sport Equipment</a>
+      <div class="flex gap-4">
+        <a href="equipment.html" class="text-slate-300 hover:text-white">Equipment</a>
+        <a href="transactions.html" class="text-amber-400">My Transactions</a>
+        <template x-if="user?.role === 'admin'">
+          <a href="admin.html" class="text-slate-300 hover:text-white">Admin</a>
+        </template>
+        <button @click="logout" class="text-red-400 hover:text-red-300 text-sm">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-6">My Transactions</h1>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-700">
+      <table class="w-full">
+        <thead class="bg-slate-800 text-left">
+          <tr>
+            <th class="px-6 py-4 font-semibold">Equipment</th>
+            <th class="px-6 py-4 font-semibold">Quantity</th>
+            <th class="px-6 py-4 font-semibold">Borrow Date</th>
+            <th class="px-6 py-4 font-semibold">Return Date</th>
+            <th class="px-6 py-4 font-semibold">Condition on Return</th>
+            <th class="px-6 py-4 font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700">
+          <template x-for="t in transactions" :key="t.id">
+            <tr class="hover:bg-slate-800/50">
+              <td class="px-6 py-4" x-text="t.equipment_name"></td>
+              <td class="px-6 py-4" x-text="t.quantity"></td>
+              <td class="px-6 py-4" x-text="formatDate(t.borrow_date)"></td>
+              <td class="px-6 py-4" x-text="t.return_date ? formatDate(t.return_date) : '-'"></td>
+              <td class="px-6 py-4" x-text="t.condition_on_return || '-'"></td>
+              <td class="px-6 py-4">
+                <template x-if="!t.return_date">
+                  <button @click="openReturnModal(t)" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-900 text-sm font-medium rounded-lg">
+                    Return
+                  </button>
+                </template>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <p x-show="transactions.length === 0 && !loading" class="text-slate-500 mt-6">No transactions yet.</p>
+  </main>
+
+  <!-- Return Modal -->
+  <div x-show="returnModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="returnModal = false">
+    <div class="bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6" @click.stop>
+      <h2 class="text-xl font-bold mb-4">Return Equipment</h2>
+      <p class="text-slate-400 mb-4" x-show="returning">
+        Returning <span x-text="returning?.equipment_name"></span> (qty: <span x-text="returning?.quantity"></span>)
+      </p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">Condition on Return</label>
+          <select x-model="returnCondition" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white">
+            <option value="new">New</option>
+            <option value="good">Good</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <button @click="submitReturn()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg">Confirm Return</button>
+          <button @click="returnModal = false" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div x-show="notification" x-transition class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg"
+    :class="notifType === 'error' ? 'bg-red-600' : 'bg-emerald-600'" x-text="notification"></div>
+
+  <script src="js/api.js"></script>
+  <script>
+    function transactionsApp() {
+      return {
+        user: null, transactions: [], loading: false,
+        returnModal: false, returning: null, returnCondition: 'good',
+        notification: '', notifType: 'success',
+        async init() {
+          redirectToLogin();
+          this.user = await getUser();
+          this.load();
+        },
+        async load() {
+          this.loading = true;
+          try {
+            this.transactions = await getTransactions();
+          } catch (e) {
+            this.notify(e.message || 'Failed to load', 'error');
+          } finally { this.loading = false; }
+        },
+        formatDate(s) {
+          if (!s) return '-';
+          const d = new Date(s);
+          return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        },
+        openReturnModal(t) {
+          this.returning = t;
+          this.returnCondition = 'good';
+          this.returnModal = true;
+        },
+        async submitReturn() {
+          if (!this.returning) return;
+          try {
+            await returnEquipment({
+              transaction_id: this.returning.id,
+              condition_on_return: this.returnCondition
+            });
+            this.notify('Equipment returned successfully');
+            this.returnModal = false;
+            this.load();
+          } catch (e) {
+            this.notify(e.message || e.data?.error || 'Failed', 'error');
+          }
+        },
+        notify(msg, type = 'success') {
+          this.notification = msg;
+          this.notifType = type;
+          setTimeout(() => this.notification = '', 3000);
+        },
+        logout() { clearAuth(); window.location.href = 'login.html'; }
+      };
+    }
+  </script>
+</body>
+</html>

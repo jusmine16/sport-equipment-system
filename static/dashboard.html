@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Sport Equipment Borrowing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style> body { font-family: 'DM Sans', sans-serif; } </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100" x-data="dashboardApp()" x-init="init()">
+  <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <a href="dashboard.html" class="text-xl font-bold text-amber-400">Sport Equipment</a>
+      <div class="flex gap-4 items-center">
+        <a href="equipment.html" class="text-slate-300 hover:text-white">Equipment</a>
+        <a href="transactions.html" class="text-slate-300 hover:text-white">My Transactions</a>
+        <template x-if="user?.role === 'admin'">
+          <a href="admin.html" class="text-slate-300 hover:text-white">Admin</a>
+        </template>
+        <span class="text-slate-500" x-text="user?.username"></span>
+        <button @click="logout" class="text-red-400 hover:text-red-300 text-sm">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Total Equipment Types</p>
+        <p class="text-3xl font-bold text-amber-400 mt-1" x-text="stats.total_equipment">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Total Units</p>
+        <p class="text-3xl font-bold text-slate-200 mt-1" x-text="stats.total_units">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Available Units</p>
+        <p class="text-3xl font-bold text-emerald-400 mt-1" x-text="stats.available_units">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Borrowed Units</p>
+        <p class="text-3xl font-bold text-amber-500 mt-1" x-text="stats.borrowed_units">-</p>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6" x-show="user?.role === 'admin'">
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h2 class="text-lg font-semibold mb-2">Pending Requests</h2>
+        <p class="text-3xl font-bold text-amber-400" x-text="stats.pending_requests">-</p>
+        <a href="admin.html" class="inline-block mt-3 text-amber-400 hover:underline">View & manage →</a>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h2 class="text-lg font-semibold mb-2">Active Borrows</h2>
+        <p class="text-3xl font-bold text-slate-200" x-text="stats.active_transactions">-</p>
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
+      <div class="flex flex-wrap gap-4">
+        <a href="equipment.html" class="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg transition">Browse Equipment</a>
+        <a href="transactions.html" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition">My Transactions</a>
+        <template x-if="user?.role === 'admin'">
+          <a href="admin.html" class="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition">Admin Panel</a>
+        </template>
+      </div>
+    </div>
+  </main>
+
+  <div x-show="notification" x-transition
+    class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg"
+    :class="notificationType === 'error' ? 'bg-red-600' : 'bg-emerald-600'"
+    x-text="notification">
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    function dashboardApp() {
+      return {
+        user: null,
+        stats: { total_equipment: '-', total_units: '-', available_units: '-', borrowed_units: '-', pending_requests: '-', active_transactions: '-' },
+        notification: '',
+        notificationType: 'success',
+        async init() {
+          redirectToLogin();
+          try {
+            this.user = await getUser();
+            const r = await getReports();
+            this.stats = r;
+          } catch (e) {
+            clearAuth();
+            window.location.href = 'login.html';
+          }
+        },
+        notify(msg, type = 'success') {
+          this.notification = msg;
+          this.notificationType = type;
+          setTimeout(() => this.notification = '', 3000);
+        },
+        logout() {
+          clearAuth();
+          window.location.href = 'login.html';
+        }
+      };
+    }
+  </script>
+</body>
+</html>

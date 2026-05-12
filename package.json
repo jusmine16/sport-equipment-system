@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd frontend && npm run start",
+    "lint": "cd frontend && npm run lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.3"
+  }
+}

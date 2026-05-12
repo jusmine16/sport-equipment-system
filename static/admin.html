@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Sport Equipment Borrowing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style> body { font-family: 'DM Sans', sans-serif; } </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100" x-data="adminApp()" x-init="init()">
+  <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex justify-between items-center">
+      <a href="dashboard.html" class="text-xl font-bold text-amber-400">Sport Equipment</a>
+      <div class="flex gap-4">
+        <a href="equipment.html" class="text-slate-300 hover:text-white">Equipment</a>
+        <a href="transactions.html" class="text-slate-300 hover:text-white">My Transactions</a>
+        <a href="admin.html" class="text-amber-400">Admin</a>
+        <button @click="logout" class="text-red-400 hover:text-red-300 text-sm">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-6">Admin Panel</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Total Equipment</p>
+        <p class="text-2xl font-bold text-amber-400" x-text="stats.total_equipment">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Available Units</p>
+        <p class="text-2xl font-bold text-emerald-400" x-text="stats.available_units">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Pending Requests</p>
+        <p class="text-2xl font-bold text-amber-500" x-text="stats.pending_requests">-</p>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <p class="text-slate-400 text-sm">Active Borrows</p>
+        <p class="text-2xl font-bold text-slate-200" x-text="stats.active_transactions">-</p>
+      </div>
+    </div>
+
+    <h2 class="text-lg font-semibold mb-4">Pending Borrow Requests</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-700 mb-8">
+      <table class="w-full">
+        <thead class="bg-slate-800 text-left">
+          <tr>
+            <th class="px-6 py-4 font-semibold">ID</th>
+            <th class="px-6 py-4 font-semibold">User</th>
+            <th class="px-6 py-4 font-semibold">Date</th>
+            <th class="px-6 py-4 font-semibold">Items</th>
+            <th class="px-6 py-4 font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700">
+          <template x-for="req in pendingRequests" :key="req.id">
+            <tr class="hover:bg-slate-800/50">
+              <td class="px-6 py-4" x-text="req.id"></td>
+              <td class="px-6 py-4" x-text="req.user_name"></td>
+              <td class="px-6 py-4" x-text="formatDate(req.request_date)"></td>
+              <td class="px-6 py-4">
+                <span x-for="(item, i) in req.items" :key="i"
+                  x-text="`${item.equipment_name} x${item.quantity}`"
+                  class="block text-sm"></span>
+              </td>
+              <td class="px-6 py-4">
+                <button @click="approve(req.id)" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg mr-2">Approve</button>
+                <button @click="reject(req.id)" class="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg">Reject</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <p x-show="pendingRequests.length === 0 && !loading" class="text-slate-500 mb-8">No pending requests.</p>
+
+    <h2 class="text-lg font-semibold mb-4">All Borrow Requests</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-700">
+      <table class="w-full">
+        <thead class="bg-slate-800 text-left">
+          <tr>
+            <th class="px-6 py-4 font-semibold">ID</th>
+            <th class="px-6 py-4 font-semibold">User</th>
+            <th class="px-6 py-4 font-semibold">Status</th>
+            <th class="px-6 py-4 font-semibold">Date</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700">
+          <template x-for="req in allRequests" :key="req.id">
+            <tr class="hover:bg-slate-800/50">
+              <td class="px-6 py-4" x-text="req.id"></td>
+              <td class="px-6 py-4" x-text="req.user_name"></td>
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded text-xs"
+                  :class="{
+                    'bg-amber-500/30 text-amber-400': req.status === 'pending',
+                    'bg-emerald-500/30 text-emerald-400': req.status === 'approved',
+                    'bg-red-500/30 text-red-400': req.status === 'rejected'
+                  }"
+                  x-text="req.status"></span>
+              </td>
+              <td class="px-6 py-4" x-text="formatDate(req.request_date)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <div x-show="notification" x-transition class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg"
+    :class="notifType === 'error' ? 'bg-red-600' : 'bg-emerald-600'" x-text="notification"></div>
+
+  <script src="js/api.js"></script>
+  <script>
+    function adminApp() {
+      return {
+        user: null, stats: {}, pendingRequests: [], allRequests: [], loading: false,
+        notification: '', notifType: 'success',
+        async init() {
+          redirectToLogin();
+          this.user = await getUser();
+          if (this.user?.role !== 'admin') {
+            window.location.href = 'dashboard.html';
+            return;
+          }
+          this.load();
+        },
+        async load() {
+          this.loading = true;
+          try {
+            this.stats = await getReports();
+            const reqs = await getBorrows();
+            this.allRequests = reqs;
+            this.pendingRequests = reqs.filter(r => r.status === 'pending');
+          } catch (e) {
+            this.notify(e.message || 'Failed to load', 'error');
+          } finally { this.loading = false; }
+        },
+        formatDate(s) {
+          if (!s) return '-';
+          return new Date(s).toLocaleString();
+        },
+        async approve(id) {
+          try {
+            await approveBorrow(id);
+            this.notify('Request approved');
+            this.load();
+          } catch (e) {
+            this.notify(e.message || e.data?.error || 'Failed', 'error');
+          }
+        },
+        async reject(id) {
+          try {
+            await rejectBorrow(id);
+            this.notify('Request rejected');
+            this.load();
+          } catch (e) {
+            this.notify(e.message || e.data?.error || 'Failed', 'error');
+          }
+        },
+        notify(msg, type = 'success') {
+          this.notification = msg;
+          this.notifType = type;
+          setTimeout(() => this.notification = '', 3000);
+        },
+        logout() { clearAuth(); window.location.href = 'login.html'; }
+      };
+    }
+  </script>
+</body>
+</html>
